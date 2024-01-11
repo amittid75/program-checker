@@ -1,24 +1,20 @@
 Import-Module ActiveDirectory
 
-# Get the current user's OU path
-$currentOU = (Get-ADUser -Identity $env:USERNAME).DistinguishedName.Substring($currentUserDN.IndexOf("OU=")).Substring(0, $currentUserDN.IndexOf(",DC="))
+# Get the current user's OU path (excluding unwanted strings and commas)
+$modifiedOU = ((Get-ADUser -Identity $env:USERNAME).DistinguishedName -replace "OU=name", "" -replace "DC=name", "" -replace ",", "").Substring(3)  # Adjusted substring for cleaner extraction
 
-# Create a new variable without unwanted DC and OU "OU=name", "DC=name" , and commas
-$modifiedOU = $currentOU -replace "OU=name", "" -replace "DC=name", "" -replace ",", ""
+# Get installed programs (more detailed properties, without publisher)
+$installedPrograms = Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object DisplayName, DisplayVersion, InstallDate | Where-Object { $_.DisplayName -match '\w+' }
 
-# Get all installed programs (no exclusions)
-$ComputerName = $env:COMPUTERNAME
-$installedPrograms = Get-WmiObject -Class Win32_Product | Select-Object -Property Caption
+# Append programs to CSV file (replaces existing "progg.csv")
+$installedPrograms | Export-Csv -Path ".\progg.csv" -NoTypeInformation
 
-# Append programs to the existing "progg.txt" file
-$installedPrograms | Out-File -FilePath ".\progg.txt" -Append
-
-# Construct the destination path with the modified OU
+# Construct the destination path
 $destinationPath = "\\127.0.0.1\$modifiedOU"
 
-# Send the updated "progg.txt" file to the destination path
-Copy-Item -Path ".\progg.txt" -Destination $destinationPath
+# Copy the updated CSV file to the destination
+Copy-Item -Path ".\progg.csv" -Destination $destinationPath
 
-# (optional) Display the OU path and confirmation message
-Write-Host "Your current OU path (excluding DCs, synced, specified text, and commas): $modifiedOU"
-Write-Host "File progg.txt (with appended programs) sent to $destinationPath successfully!"
+# Display optional messages
+Write-Host "Your current OU path (cleaned): $modifiedOU"
+Write-Host "File progg.csv (with appended programs) sent to $destinationPath successfully!"
